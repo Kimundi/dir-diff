@@ -33,7 +33,7 @@ pub fn diff<'a>(paths: impl Iterator<Item=&'a Path>) -> Result<Diff, Error> {
         guards.push(thread::spawn(move || {
             let mut paths = HashMap::new();
 
-            let walkdir = walkdir::WalkDir::new(&path);
+            let walkdir = walkdir::WalkDir::new(&path).sort_by(|a,b| a.file_name().cmp(b.file_name()));
             for entry in walkdir.into_iter() {
                 let walk_path;
                 let res_entry;
@@ -88,8 +88,12 @@ impl Diff {
             }
         }
 
+        let mut all_rel_paths: Vec<_> = all_rel_paths.into_iter().collect();
+        all_rel_paths.sort();
+
         for rel_path in all_rel_paths {
             if let Some(p) = rel_path.parent() {
+                //println!("Check {:?} in {:?}", p, dir_filter_cache);
                 if filter_dirs && dir_filter_cache.contains(p) {
                     continue;
                 }
@@ -116,11 +120,10 @@ impl Diff {
                 let b = &pair[1];
                 match (a.1, b.1) {
                     (Some(Entry::Metadata(a)), Some(Entry::Metadata(b))) => {
-                        if a.file_type() != b.file_type() || a.len() != b.len() {
-                            add_to_diff_list = true;
-                        }
-                        if a.file_type().is_dir() || b.file_type().is_dir() {
-                            add_to_dir_filter = true;
+                        if a.file_type() != b.file_type() {
+                            if !a.file_type().is_dir() && a.len() != b.len() {
+                                add_to_diff_list = true;    
+                            }
                         }
                     }
                     (Some(Entry::MetadataError(a)), Some(Entry::MetadataError(b))) => {
@@ -139,10 +142,18 @@ impl Diff {
                     _ => add_to_diff_list = true,
                 }
             }
+            for e in &local_diff_list.1 {
+                if let Some(Entry::Metadata(m)) = e.1 {
+                    if m.file_type().is_dir() {
+                        add_to_dir_filter = true;
+                    }
+                }
+            }
 
             if add_to_diff_list {
                 if add_to_dir_filter {
                     dir_filter_cache.insert(local_diff_list.0);
+                    //println!("dir filter: {:?}", dir_filter_cache);
                 }
                 diff_list.push(local_diff_list);
             }

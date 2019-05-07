@@ -25,16 +25,19 @@ fn main() {
     back_map.insert(&b, "B");
 
     let res = diff(vec![a, b].into_iter()).unwrap();
-    let res = res.diff_paths(false);
+    let res = res.diff_paths(true);
     for entry in res {
-        println!("[{}]", entry.0.display());
+        print!("[{}]: ", entry.0.display());
+        let mut first = true;
         for diffs in &entry.1 {
+            if first {first = false; } else {print!(" | "); }
             if let Some(entry) = diffs.1 {
-                println!("    {}: {}", back_map[&diffs.0], fmt(entry));
+                print!("{}: {}", back_map[&diffs.0], fmt(entry));
             } else {
-                println!("    {}: <missing>", back_map[&diffs.0]);
+                print!("{}: <missing>", back_map[&diffs.0]);
             }
         }
+        println!();
     }
 }
 

@@ -92,13 +92,6 @@ impl Diff {
         all_rel_paths.sort();
 
         for rel_path in all_rel_paths {
-            if let Some(p) = rel_path.parent() {
-                //println!("Check {:?} in {:?}", p, dir_filter_cache);
-                if filter_dirs && dir_filter_cache.contains(p) {
-                    continue;
-                }
-            }
-            
             let mut local_diff_list: DiffEntry = (&rel_path, Vec::new());
             let mut add_to_diff_list = false;
             let mut add_to_dir_filter = false;
@@ -158,6 +151,18 @@ impl Diff {
                 diff_list.push(local_diff_list);
             }
         }
+
+        let diff_list = diff_list.into_iter().filter(|e| {
+            if filter_dirs {
+                if let Some(p) = e.0.parent() {
+                    !dir_filter_cache.contains(p)
+                } else {
+                    true
+                }
+            } else {
+                true
+            }
+        }).collect();
 
         diff_list
     }

@@ -73,7 +73,7 @@ pub fn diff<'a>(paths: impl Iterator<Item=&'a Path>) -> Result<Diff, Error> {
     Ok(ret)
 }
 
-pub type DiffEntry<'a> = (&'a Path, Vec<(&'a Path, &'a Entry)>);
+pub type DiffEntry<'a> = (&'a Path, Vec<(&'a Path, Option<&'a Entry>)>);
 pub type DiffEntries<'a> = Vec<DiffEntry<'a>>;
 
 impl Diff {
@@ -102,10 +102,11 @@ impl Diff {
             for tree in &self.trees {
                 match tree.1.get(rel_path) {
                     Some(e) => {
-                        local_diff_list.1.push((&tree.0, e));
+                        local_diff_list.1.push((&tree.0, Some(e)));
                     }
                     None => {
                         add_to_diff_list = true;
+                        local_diff_list.1.push((&tree.0, None));
                     }
                 }
             }
@@ -114,7 +115,7 @@ impl Diff {
                 let a = &pair[0];
                 let b = &pair[1];
                 match (a.1, b.1) {
-                    (Entry::Metadata(a), Entry::Metadata(b)) => {
+                    (Some(Entry::Metadata(a)), Some(Entry::Metadata(b))) => {
                         if a.file_type() != b.file_type() || a.len() != b.len() {
                             add_to_diff_list = true;
                         }
@@ -122,15 +123,15 @@ impl Diff {
                             add_to_dir_filter = true;
                         }
                     }
-                    (Entry::MetadataError(a), Entry::MetadataError(b)) => {
+                    (Some(Entry::MetadataError(a)), Some(Entry::MetadataError(b))) => {
                         if a.io_error().map(|e| e.kind()) != b.io_error().map(|e| e.kind()) {
                             add_to_diff_list = true;
                         }
                     }
-                    (Entry::EntryError, Entry::EntryError) => {
+                    (Some(Entry::EntryError), Some(Entry::EntryError)) => {
                         // same...
                     }
-                    (Entry::EntryIoError(a), Entry::EntryIoError(b)) => {
+                    (Some(Entry::EntryIoError(a)), Some(Entry::EntryIoError(b))) => {
                         if a != b {
                             add_to_diff_list = true;
                         }

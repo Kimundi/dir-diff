@@ -14,6 +14,7 @@ pub enum Error {
     ThreadError
 }
 
+#[derive(Debug)]
 pub enum Entry {
     Metadata(fs::Metadata),
     MetadataError(walkdir::Error),

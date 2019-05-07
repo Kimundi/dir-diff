@@ -72,14 +72,15 @@ pub fn diff<'a>(paths: impl Iterator<Item=&'a Path>) -> Result<Diff, Error> {
     Ok(ret)
 }
 
-pub type DiffEntry<'a> = Vec<(&'a Path, &'a Entry)>;
+pub type DiffEntry<'a> = (&'a Path, Vec<(&'a Path, &'a Entry)>);
 pub type DiffEntries<'a> = Vec<DiffEntry<'a>>;
 
 impl Diff {
-    pub fn diff_paths(&self) -> DiffEntries<'_> {
+    pub fn diff_paths(&self, filter_dirs: bool) -> DiffEntries<'_> {
         let mut diff_list = Vec::new();
-        
         let mut all_rel_paths = HashSet::new();
+        let mut dir_filter_cache = HashSet::new();
+
         for tree in &self.trees {
             for key in tree.1.keys() {
                 all_rel_paths.insert(key);
@@ -87,13 +88,20 @@ impl Diff {
         }
 
         for rel_path in all_rel_paths {
-            let mut local_diff_list: DiffEntry = Vec::new();
+            if let Some(p) = rel_path.parent() {
+                if filter_dirs && dir_filter_cache.contains(p) {
+                    continue;
+                }
+            }
+            
+            let mut local_diff_list: DiffEntry = (&rel_path, Vec::new());
             let mut add_to_diff_list = false;
+            let mut add_to_dir_filter = false;
             
             for tree in &self.trees {
                 match tree.1.get(rel_path) {
                     Some(e) => {
-                        local_diff_list.push((&tree.0, e));
+                        local_diff_list.1.push((&tree.0, e));
                     }
                     None => {
                         add_to_diff_list = true;
@@ -101,13 +109,16 @@ impl Diff {
                 }
             }
             
-            for pair in local_diff_list.windows(2) {
+            for pair in local_diff_list.1.windows(2) {
                 let a = &pair[0];
                 let b = &pair[1];
                 match (a.1, b.1) {
                     (Entry::Metadata(a), Entry::Metadata(b)) => {
                         if a.file_type() != b.file_type() || a.len() != b.len() {
                             add_to_diff_list = true;
+                        }
+                        if a.file_type().is_dir() || b.file_type().is_dir() {
+                            add_to_dir_filter = true;
                         }
                     }
                     (Entry::MetadataError(a), Entry::MetadataError(b)) => {
@@ -116,7 +127,7 @@ impl Diff {
                         }
                     }
                     (Entry::EntryError, Entry::EntryError) => {
-                        
+                        // same...
                     }
                     (Entry::EntryIoError(a), Entry::EntryIoError(b)) => {
                         if a != b {
@@ -128,6 +139,9 @@ impl Diff {
             }
 
             if add_to_diff_list {
+                if add_to_dir_filter {
+                    dir_filter_cache.insert(local_diff_list.0);
+                }
                 diff_list.push(local_diff_list);
             }
         }
